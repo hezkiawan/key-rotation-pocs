@@ -43,8 +43,8 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: 'projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/mygithub-pool/providers/mygithub-provider'
-          service_account: 'firebase-app-emulator@YOUR_PROJECT_ID.iam.gserviceaccount.com' 
+          workload_identity_provider: 'projects/862464484546/locations/global/workloadIdentityPools/mygithub-pool/providers/mygithub-provider'
+          service_account: 'firebase-app-emulator@vault-rotation-sandbox.iam.gserviceaccount.com' 
 
       # ---------------------------------------------------------
       # 3. THE VERIFICATION (Application Default Credentials)
@@ -56,7 +56,7 @@ jobs:
         working-directory: ./wif-poc-zerotrust  
         env:
           # Explicitly tell the Google SDK which project we are targeting
-          GCP_PROJECT: 'YOUR_PROJECT_ID'
+          GCP_PROJECT: 'vault-rotation-sandbox'
         run: |
           echo "1. Compiling the Go backend..."
           # We compile it FIRST because downloading/building the SDK takes time.
