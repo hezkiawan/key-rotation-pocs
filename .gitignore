@@ -1,0 +1,13 @@
+# Ignore sensitive keys anywhere in the project
+master-sa-key.json
+*.json
+
+# Ignore local Kubernetes certificates
+minikube-ca.crt
+
+# Ignore compiled binaries
+vault.exe
+*.exe
+
+# Ignore Go modules cache (optional)
+vendor/

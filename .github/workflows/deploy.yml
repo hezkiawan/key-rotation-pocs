@@ -1,0 +1,75 @@
+name: WIF Zero-Trust Authentication PoC
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-wif-auth:
+    runs-on: ubuntu-latest
+
+    # ---------------------------------------------------------
+    # 1. THE IDENTITY PERMISSION (CRITICAL)
+    # ---------------------------------------------------------
+    # This permissions block is the absolute core of GitOps security.
+    # It grants this specific pipeline the authority to request a 
+    # short-lived OpenID Connect (OIDC) token from GitHub.
+    # Without 'id-token: write', the workflow has no identity, 
+    # and Google Cloud will refuse the connection.
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      # ---------------------------------------------------------
+      # 2. THE ZERO-TRUST HANDSHAKE
+      # ---------------------------------------------------------
+      # This step handles the WIF exchange. It takes the GitHub OIDC token
+      # and sends it to the workload_identity_provider URL.
+      # Google Cloud checks the token signature and the repository name.
+      # Because everything matches, Google injects a temporary 1-hour 
+      # access token for the 'firebase-app-emulator' directly into the 
+      # background environment variables of this runner.
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/mygithub-pool/providers/mygithub-provider'
+          service_account: 'firebase-app-emulator@YOUR_PROJECT_ID.iam.gserviceaccount.com' 
+
+      # ---------------------------------------------------------
+      # 3. THE VERIFICATION (Application Default Credentials)
+      # ---------------------------------------------------------
+      # Now we prove the Go application works without any passwords.
+      # The Google SDK inside the Go app will automatically find the 
+      # temporary token injected by the step above.
+      - name: Run Go Backend (Verify ADC)
+        working-directory: ./wif-poc-zerotrust  
+        env:
+          # Explicitly tell the Google SDK which project we are targeting
+          GCP_PROJECT: 'YOUR_PROJECT_ID'
+        run: |
+          echo "1. Compiling the Go backend..."
+          # We compile it FIRST because downloading/building the SDK takes time.
+          # If we used `go run main.go`, the curl command would fire before the server was ready.
+          go build -o server main.go
+          
+          echo "2. Starting the compiled server in the background..."
+          # Start the server and send it to the background using '&'
+          ./server &
+          
+          echo "3. Waiting 3 seconds for the HTTP server to bind to the port..."
+          sleep 3
+          
+          echo "4. Pinging the API to prove authentication succeeded..."
+          # If the app booted successfully, it means Firebase initialized using the WIF token!
+          curl -v http://localhost:8080/api/status

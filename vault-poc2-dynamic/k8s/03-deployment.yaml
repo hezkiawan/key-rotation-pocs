@@ -1,0 +1,52 @@
+# ==============================================================================
+# 03 - THE ZERO-DOWNTIME DEPLOYMENT
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-backend
+  namespace: app-namespace
+  annotations:
+    # THE MAGIC BRIDGE: Reloader Operator
+    # This annotation tells stakater/Reloader to watch the K8s Secret.
+    # The exact second VSO updates the secret, Reloader commands this 
+    # Deployment to execute a Rolling Update automatically.
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1       # 1. Spin up the new Pod with the new key.
+      maxUnavailable: 0 # 2. NEVER kill the old Pod until the new one is running (Zero-Downtime).
+  selector:
+    matchLabels:
+      app: go-backend
+  template:
+    metadata:
+      labels:
+        app: go-backend
+    spec:
+      serviceAccountName: backend-ksa
+      containers:
+      - name: go-backend
+        image: poc2-go-backend:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: secret-volume
+          mountPath: /app/secrets
+          readOnly: true
+        # The Readiness Probe guarantees the old Pod isn't terminated 
+        # until this new container proves it can serve API traffic.
+        readinessProbe:
+          httpGet:
+            path: /api/data
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: firebase-sa-k8s-secret
